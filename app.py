@@ -66,17 +66,31 @@ class VideoProcessor(VideoTransformerBase):
 
         return av.VideoFrame.from_ndarray(img, format="bgr24")
 
-# Streamlit application
+# Streamlit Application
 st.title("Real-Time Number Plate Detection with Camera")
-
 st.write("This application uses your device's camera to detect and classify vehicle number plates in real-time. Please allow camera access to continue.")
 
-# WebRTC Camera Stream
-webrtc_streamer(
-    key="camera",
-    video_processor_factory=VideoProcessor,
-    media_stream_constraints={
-        "video": {"facingMode": {"exact": "environment"}},  # Use back camera
-        "audio": False,  # Disable audio
-    },
-)
+# Camera Selection
+camera_options = ["Default", "Front Camera", "Back Camera"]
+selected_camera = st.selectbox("Select Camera", camera_options)
+
+# Set facingMode based on selection
+if selected_camera == "Front Camera":
+    facing_mode = {"facingMode": {"exact": "user"}}
+elif selected_camera == "Back Camera":
+    facing_mode = {"facingMode": {"exact": "environment"}}
+else:
+    facing_mode = True  # Default camera
+
+try:
+    webrtc_streamer(
+        key="camera",
+        video_processor_factory=VideoProcessor,
+        media_stream_constraints={
+            "video": facing_mode,  # Set camera facing mode
+            "audio": False,        # Disable audio
+        },
+    )
+except Exception as e:
+    st.error(f"Error accessing the camera: {str(e)}")
+    st.warning("Ensure your device has a camera and is accessible through the browser.")
