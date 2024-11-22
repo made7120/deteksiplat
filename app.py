@@ -1,22 +1,24 @@
 import cv2
 import streamlit as st
+from streamlit_webrtc import webrtc_streamer, VideoTransformerBase
 import torch
 from ultralytics import YOLO
 from torchvision import transforms
 from PIL import Image
 from transformers import ViTFeatureExtractor, ViTForImageClassification
+import av
 import numpy as np
 
-# Step 1: Load YOLO model for bounding box detection
-yolo_model = YOLO("yolov5s.pt")  # Use a pre-trained YOLOv5 model
+# Load YOLO model for number plate detection
+yolo_model = YOLO("yolov5s.pt")
 
-# Step 2: Load Vision Transformer for classification
+# Load Vision Transformer (ViT) model for classification
 model_name = "google/vit-base-patch16-224"
 feature_extractor = ViTFeatureExtractor.from_pretrained(model_name)
 vit_model = ViTForImageClassification.from_pretrained(model_name)
 vit_model.eval()
 
-# Step 3: Preprocessing function for ViT
+# Preprocessing function for ViT
 transform = transforms.Compose([
     transforms.Resize((224, 224)),
     transforms.ToTensor(),
@@ -37,55 +39,35 @@ def classify_number_plate(image):
         confidence = predictions[0][predicted_class].item()
     return predicted_class, confidence
 
-def detect_and_classify(frame):
-    # Detect bounding boxes using YOLO
-    results = yolo_model(frame)
-    detections = results.xyxy[0]  # Bounding box predictions
+# Streamlit application title
+st.title("Real-Time Number Plate Detection with Streamlit")
 
-    for detection in detections:
-        x1, y1, x2, y2, conf, cls = map(int, detection[:6])
-        if conf > 0.5:  # Filter by confidence
-            label = "Number Plate"
-            plate_region = frame[y1:y2, x1:x2]
+class VideoProcessor(VideoTransformerBase):
+    def transform(self, frame):
+        img = frame.to_ndarray(format="bgr24")
 
-            # Classify the plate content using ViT
-            try:
-                predicted_class, confidence = classify_number_plate(plate_region)
-                label += f" ({predicted_class}, {confidence:.2f})"
-            except Exception as e:
-                label = "Error in classification"
+        # Detect bounding boxes using YOLO
+        results = yolo_model(img)
+        detections = results.xyxy[0]  # Bounding box predictions
 
-            # Draw bounding box and label
-            cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
-            cv2.putText(frame, label, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (36, 255, 12), 2)
+        for detection in detections:
+            x1, y1, x2, y2, conf, cls = map(int, detection[:6])
+            if conf > 0.5:  # Filter by confidence
+                label = "Number Plate"
+                plate_region = img[y1:y2, x1:x2]
 
-    return frame
+                # Classify the plate content using ViT
+                try:
+                    predicted_class, confidence = classify_number_plate(plate_region)
+                    label += f" ({predicted_class}, {confidence:.2f})"
+                except Exception as e:
+                    label = "Error in classification"
 
-# Streamlit App
-st.title("Real-Time Number Plate Detection and Classification")
+                # Draw bounding box and label
+                cv2.rectangle(img, (x1, y1), (x2, y2), (0, 255, 0), 2)
+                cv2.putText(img, label, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (36, 255, 12), 2)
 
-# Camera input
-run_camera = st.checkbox("Turn on Camera")
+        return av.VideoFrame.from_ndarray(img, format="bgr24")
 
-if run_camera:
-    st.write("Camera is running...")
-
-    # OpenCV to access webcam
-    cap = cv2.VideoCapture(0)
-    frame_window = st.image([])  # Placeholder for the video feed
-
-    while run_camera:
-        ret, frame = cap.read()
-        if not ret:
-            st.error("Error accessing the camera.")
-            break
-
-        # Process the frame
-        frame = detect_and_classify(frame)
-
-        # Display in Streamlit
-        frame_window.image(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
-
-    cap.release()
-else:
-    st.write("Camera is off. Check the box above to enable it.")
+# Start the WebRTC streamer
+webrtc_streamer(key="example", video_processor_factory=VideoProcessor)
