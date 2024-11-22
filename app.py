@@ -10,7 +10,7 @@ import av
 import numpy as np
 
 # Load YOLO model for number plate detection
-yolo_model = YOLO("yolov5s.pt")
+yolo_model = YOLO("yolov5s.pt")  # Change to "yolov5n.pt" for faster detection
 
 # Load Vision Transformer (ViT) model for classification
 model_name = "google/vit-base-patch16-224"
@@ -39,9 +39,6 @@ def classify_number_plate(image):
         confidence = predictions[0][predicted_class].item()
     return predicted_class, confidence
 
-# Streamlit application title
-st.title("Real-Time Number Plate Detection with Streamlit")
-
 class VideoProcessor(VideoTransformerBase):
     def transform(self, frame):
         img = frame.to_ndarray(format="bgr24")
@@ -69,5 +66,17 @@ class VideoProcessor(VideoTransformerBase):
 
         return av.VideoFrame.from_ndarray(img, format="bgr24")
 
-# Start the WebRTC streamer
-webrtc_streamer(key="example", video_processor_factory=VideoProcessor)
+# Streamlit application
+st.title("Real-Time Number Plate Detection with Camera")
+
+st.write("This application uses your device's camera to detect and classify vehicle number plates in real-time. Please allow camera access to continue.")
+
+# WebRTC Camera Stream
+webrtc_streamer(
+    key="camera",
+    video_processor_factory=VideoProcessor,
+    media_stream_constraints={
+        "video": {"facingMode": {"exact": "environment"}},  # Use back camera
+        "audio": False,  # Disable audio
+    },
+)
