@@ -37,16 +37,7 @@ def classify_number_plate(image):
         confidence = predictions[0][predicted_class].item()
     return predicted_class, confidence
 
-# Streamlit App
-st.title("Real-Time Number Plate Detection and Classification")
-
-uploaded_file = st.file_uploader("Upload an image", type=["jpg", "jpeg", "png"])
-
-if uploaded_file is not None:
-    # Load image
-    file_bytes = np.asarray(bytearray(uploaded_file.read()), dtype=np.uint8)
-    frame = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
-
+def detect_and_classify(frame):
     # Detect bounding boxes using YOLO
     results = yolo_model(frame)
     detections = results.xyxy[0]  # Bounding box predictions
@@ -68,5 +59,33 @@ if uploaded_file is not None:
             cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
             cv2.putText(frame, label, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (36, 255, 12), 2)
 
-    # Display output image
-    st.image(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB), caption="Processed Image")
+    return frame
+
+# Streamlit App
+st.title("Real-Time Number Plate Detection and Classification")
+
+# Camera input
+run_camera = st.checkbox("Turn on Camera")
+
+if run_camera:
+    st.write("Camera is running...")
+
+    # OpenCV to access webcam
+    cap = cv2.VideoCapture(0)
+    frame_window = st.image([])  # Placeholder for the video feed
+
+    while run_camera:
+        ret, frame = cap.read()
+        if not ret:
+            st.error("Error accessing the camera.")
+            break
+
+        # Process the frame
+        frame = detect_and_classify(frame)
+
+        # Display in Streamlit
+        frame_window.image(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
+
+    cap.release()
+else:
+    st.write("Camera is off. Check the box above to enable it.")
