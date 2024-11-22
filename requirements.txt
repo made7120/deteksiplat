@@ -4,3 +4,4 @@ transformers
 ultralytics
 opencv-python-headless
 Pillow
+streamlit-webrtc
